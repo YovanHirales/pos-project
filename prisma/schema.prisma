@@ -1,0 +1,118 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---- Example Models ----
+
+// You might differentiate roles for restaurant staff or customers.
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  role      Role     @default(STAFF)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]  // if you track which user took/created the order
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+// enum to track order status
+enum OrderStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// The restaurant might have multiple branches if you want to scale
+model Restaurant {
+  id         Int      @id @default(autoincrement())
+  name       String
+  location   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tables     Table[]
+  menuItems  MenuItem[]
+}
+
+// Each physical table in the dining area
+model Table {
+  id            Int      @id @default(autoincrement())
+  tableNumber   Int
+  seats         Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  restaurantId  Int
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+
+  // For the orders placed at this table
+  orders        Order[]
+}
+
+// Menu items that the restaurant sells
+model MenuItem {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  price         Decimal   @default(0.00)
+  category      String?   // or you could make a separate Category model
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  restaurantId  Int
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+
+  orderItems    OrderItem[]
+}
+
+// An order placed by customers at a particular table
+model Order {
+  id            Int         @id @default(autoincrement())
+  status        OrderStatus @default(PENDING)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // If there's a staff member who created the order:
+  userId        Int?
+  user          User?       @relation(fields: [userId], references: [id])
+
+  tableId       Int?
+  table         Table?      @relation(fields: [tableId], references: [id])
+
+  // Items in the order
+  orderItems    OrderItem[]
+  
+  // You might also want:
+  // totalPrice Decimal?
+  // paymentId  Int? (if you track payments separately)
+}
+
+// Join table between Order and MenuItem for a many-to-many relationship
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  quantity   Int      @default(1)
+  note       String?  // e.g., "No onions", "Extra spicy"
+
+  // Price at the time of ordering (good to store in case of menu price changes)
+  price      Decimal  @default(0.00)
+
+  orderId    Int
+  order      Order    @relation(fields: [orderId], references: [id])
+
+  menuItemId Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+}
